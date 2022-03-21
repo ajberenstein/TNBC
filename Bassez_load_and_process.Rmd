@@ -1,0 +1,153 @@
+---
+title: Basic QC and processing of breast cancer single-cell data from Basses et al. (Nature Medicine 2021) 
+author: "A. Berenstien; M. Andreatta <massimo.andreatta at unil.ch> and S. Carmona <santiago.carmona at unil.ch>"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+```
+
+
+# Load and process data
+Notice that data must be download manually from the author's website  https://lambrechtslab.sites.vib.be/en/single-cell
+```{r}
+dpath <- "~/Dropbox/FededaBerenstein/data/Bassez2021/rawCounts"
+outpath <- "~/Dropbox/FededaBerenstein/data/Bassez2021/processed"
+
+## Cohort 1 
+count.file.c1 <- file.path(dpath,"1863-counts_cells_cohort1.rds")  ## Notice that filepath is a crossplatform function  
+mtd.file.c1 <- file.path(dpath,"1872-BIOKEY_metaData_cohort1_web.csv")
+project.name.c1 <- "Cohort1_AntiPD1"
+
+cohort1 <- readRDS(count.file.c1)
+meta1 <- read.csv(mtd.file.c1)
+rownames(meta1) <- meta1$Cell
+table(meta1$patient_id,meta1$timepoint)
+data.c1 <- CreateSeuratObject(cohort1, project=project.name.c1, meta.data = meta1)
+rm(cohort1);rm(meta1);gc()
+
+
+# cohort 2
+count.file.c2 <- file.path(dpath,"1867-counts_cells_cohort2.rds")
+mtd.file.c2 <- file.path(dpath,"1871-BIOKEY_metaData_cohort2_web.csv")  
+project.name.c2 <- "Cohort2_chemo"
+
+cohort2 <- readRDS(count.file.c2)
+meta2 <- read.csv(mtd.file.c2)
+rownames(meta2) <- meta2$Cell
+table(meta2$patient_id,meta2$timepoint)
+data.c2 <- CreateSeuratObject(cohort2, project=project.name.c2, meta.data = meta2)
+rm(cohort2);rm(meta2);gc()
+```
+
+Ribosomal and mitochondrial content
+
+```{r, fig.height= 10}
+percent.ribo.dv.c1 <- PercentageFeatureSet(data.c1, pattern = "^RP[LS]")
+percent.mito.dv.c1 <- PercentageFeatureSet(data.c1, pattern = "^MT-")
+
+data.c1 <- AddMetaData(data.c1, metadata = percent.ribo.dv.c1, col.name = "percent.ribo")
+data.c1 <- AddMetaData(data.c1, metadata = percent.mito.dv.c1, col.name = "percent.mito")
+
+Idents(data.c1) <- "patient_id"
+VlnPlot(data.c1, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+Idents(data.c1) <- "cellType"
+VlnPlot(data.c1, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+print('Feature RNA')
+quantile(data.c1$nFeature_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+print('Count RNA')
+quantile(data.c1$nCount_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+
+
+
+#### Cohort 2
+percent.ribo.dv.c2 <- PercentageFeatureSet(data.c2, pattern = "^RP[LS]")
+percent.mito.dv.c2 <- PercentageFeatureSet(data.c2, pattern = "^MT-")
+
+data.c2 <- AddMetaData(data.c2, metadata = percent.ribo.dv.c2, col.name = "percent.ribo")
+data.c2 <- AddMetaData(data.c2, metadata = percent.mito.dv.c2, col.name = "percent.mito")
+
+Idents(data.c2) <- "patient_id"
+VlnPlot(data.c2, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+Idents(data.c2) <- "cellType"
+VlnPlot(data.c2, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+print('Feature RNA')
+quantile(data.c2$nFeature_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+print('Count RNA')
+quantile(data.c2$nCount_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+
+```
+
+Minimal QC to remove extreme outliers
+```{r}
+dim(data.c1)
+data.c1 <- subset(data.c1, subset = nFeature_RNA>500 & nFeature_RNA<6000 & 
+                       nCount_RNA>600 & nCount_RNA< 25000 &
+                       percent.ribo < 50  &
+                       percent.mito < 15)
+dim(data.c1)
+```
+
+```{r}
+
+dim(data.c2)
+data.c2 <- subset(data.c2, subset = nFeature_RNA>500 & nFeature_RNA<6000 & 
+                       nCount_RNA>600 & nCount_RNA< 25000 &
+                       percent.ribo < 50  &
+                       percent.mito < 15)
+dim(data.c2)
+
+```
+
+### Processing data 
+#### (Normalizing, F.selection, scaling, and Reductions)
+
+```{r}
+## Process cohort 1 (without subsampling)
+set.seed(seed)
+data.c1 <- NormalizeData(data.c1, verbose = FALSE);gc()
+data.c1 <- FindVariableFeatures(data.c1, selection.method = "vst", nfeatures = nfeat, verbose = FALSE);gc()
+genes.remove <- unlist(scGate::genes.blacklist.Hs) #non interesting and/or technical artifact-associated genes
+removing <- intersect(data.c1@assays$RNA@var.features, genes.remove)
+cat(paste('removing: ',round(100*removing%>%length()/nfeat,2),'% genes\n' ))#, file = con, append =T)
+data.c1@assays$RNA@var.features <- setdiff(data.c1@assays$RNA@var.features, genes.remove)
+gc()
+
+data.c1 <- ScaleData(data.c1); gc()
+data.c1 <- RunPCA(data.c1, features = data.c1@assays$RNA@var.features, ndims.print = 1:5, nfeatures.print = 5); gc()
+data.c1 <- RunUMAP(data.c1, reduction = "pca", dims = 1:30, seed.use=seed); gc()
+
+```
+
+
+```{r}
+## Process cohort 2 (without subsampling)
+set.seed(1234)
+data.c2 <- NormalizeData(data.c2, verbose = FALSE);gc()
+data.c2 <- FindVariableFeatures(data.c2, selection.method = "vst", nfeatures = nfeat, verbose = FALSE);gc()
+genes.remove <- unlist(scGate::genes.blacklist.Hs) #non interesting and/or technical artifact-associated genes
+removing <- intersect(data.c2@assays$RNA@var.features, genes.remove)
+cat(paste('removing: ',round(100*removing%>%length()/nfeat,2),'% genes\n' ))#, file = con, append =T)
+data.c2@assays$RNA@var.features <- setdiff(data.c2@assays$RNA@var.features, genes.remove)
+gc()
+
+data.c2 <- ScaleData(data.c2); gc()
+data.c2 <- RunPCA(data.c2, features = data.c2@assays$RNA@var.features, ndims.print = 1:5, nfeatures.print = 5); gc()
+data.c2 <- RunUMAP(data.c2, reduction = "pca", dims = 1:30, seed.use=123); gc()
+```
+
+## save processed data for future speed-up 
+```{r}
+saveRDS(data.c1, file.path(outpath,'Bassez_cohort1_processed.rds'))
+saveRDS(data.c2, file.path(outpath,'Bassez_cohort2_processed.rds'))
+if(F){
+  data.c1 <- readRDS(file.path(outpath,'Bassez_cohort1_processed.rds'))
+  data.c2 <- readRDS(file.path(outpath,'Bassez_cohort2_processed.rds'))
+}
+```
+
