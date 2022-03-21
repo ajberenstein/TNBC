@@ -1,0 +1,20 @@
+---
+title: "R confifuration notebook"
+output: html_notebook
+---
+
+```{r}
+renv::activate()
+renv::restore()
+renv::snapshot()
+
+```
+
+```{r}
+install.packages("remotes")
+remotes::install_github("carmonalab/UCell", ref="v1.3")
+remotes::install_github("carmonalab/scGate")
+install.packages('Seurat')
+
+```
+
