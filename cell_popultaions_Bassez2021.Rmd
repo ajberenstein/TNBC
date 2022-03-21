@@ -1,0 +1,128 @@
+---
+title: Basic QC and processing of breast cancer single-cell data from Basses et al. (Nature Medicine 2021)
+author: "A. Berenstien"
+output: html_notebook
+---
+
+```{r}
+renv::activate()
+renv::restore()
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+```
+
+Load datasets
+```{r}
+dpath <- "~/Dropbox/FededaBerenstein/data/Bassez2021/rawCounts"
+inputdir <- "~/Dropbox/FededaBerenstein/data/Bassez2021/processed"
+
+data.c1 <- readRDS(file.path(inputdir,'Bassez_cohort1_processed.rds'))
+data.c2 <- readRDS(file.path(inputdir,'Bassez_cohort2_processed.rds'))
+```
+
+
+```{r,fig.width=7,fig.height=3}
+A1 <- DimPlot(data.c1, reduction = "umap", group.by = "cellType")  + ggtitle("") +
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Cohrt 1") + NoLegend()
+
+A2 <- DimPlot(data.c2, reduction = "umap", group.by = "cellType")  + ggtitle("") +
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Cohrt 2")
+
+A1 + A2
+```
+Patients + timpoint + expansion in Cohort 1
+```{r,fig.width=9,fig.height=3}
+B1 <- DimPlot(data.c1, reduction = "umap", group.by = "patient_id")  + ggtitle("") +
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Patient ID") + NoLegend()
+
+C1 <- DimPlot(data.c1, reduction = "umap", group.by = "timepoint")  + ggtitle("") +
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Timepoint")
+
+D1 <- DimPlot(data.c1, reduction = "umap", group.by = "expansion")  + ggtitle("") +
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Expansion")
+
+E1 <- DimPlot(data.c1, reduction = "umap", group.by = "BC_type")  + ggtitle("") +
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Subtype")
+
+#B1 +C1 + D1 + E1
+```
+
+Aliases
+PD-1 ->: PDCD1
+PD-L1 -> CD274
+
+```{r,fig.width=9,fig.height=5}
+F1 <- FeaturePlot(data.c1,reduction = "umap",features =  c("PDCD1", "CD274"),
+            order =T,blend =T, blend.threshold = 0.3,cols = c("gray80", "red", "blue"),pt.size = 1)
+
+F2 <- FeaturePlot(data.c2,reduction = "umap",features =  c("PDCD1", "CD274"),
+            order =T,blend =T, blend.threshold = 0.3,cols = c("gray80", "red", "blue"),pt.size = 0.1)
+
+F1 / F2 
+```
+
+## Explore PD-L1 behaviour on cancer cells (pre-treatment)
+```{r,fig.width=9,fig.height=5}
+cancer.cells.pre.treatment.c1 <- subset(data.c1, timepoint == "Pre" & cellType == "Cancer_cell") 
+cancer.cells.pre.treatment.c2 <- subset(data.c2, timepoint == "Pre" & cellType == "Cancer_cell") 
+
+FeaturePlot(cancer.cells.pre.treatment.c1, reduction = "umap",features =  c("PDCD1", "CD274"),
+            order =T,blend =T, blend.threshold = 0.3,cols = c("gray80", "red", "blue"),pt.size = 0.2) /
+  
+FeaturePlot(cancer.cells.pre.treatment.c2, reduction = "umap",features =  c("PDCD1", "CD274"),
+            order =T,blend =T, blend.threshold = 0.3,cols = c("gray80", "red", "blue"),pt.size = 0.3) 
+
+
+```
+
+
+```{r,fig.width=12,fig.height=5}
+aa <- DotPlot(data.c1, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Naive")
+bb <- DotPlot(data.c2, features = c("PDCD1","CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("Chemo")
+aa | bb
+```
+
+```{r}
+DoHeatmap(subset(data.c2, downsample = 200), features = c("PDCD1","CD274"), size = 3)
+
+```
+
+```{r}
+VlnPlot(data.c1,features = "CD274",group.by = "cellType") 
+VlnPlot(cancer.cells.pre.treatment.c1,features = "CD274",group.by = "patient_id") + NoLegend()
+
+```
+
+```{r}
+VlnPlot(data.c2,features = "CD274",group.by = "cellType") 
+VlnPlot(cancer.cells.pre.treatment.c2,features = "CD274",group.by = "patient_id") + NoLegend()
+RidgePlot(cancer.cells.pre.treatment.c2, features = "CD274", ncol = 2,group.by = "patient_id")
+RidgePlot(data.c2, features = "PDCD1", ncol = 2,group.by = "cellType")
+
+
+```
+
+
+```{r}
+VlnPlot(data.c1,features = "PDCD1",group.by = "cellType")
+
+```
+
+
+# Load Metadata from monocyte-Macrophague
+```{r}
+## Cohort 1 
+
+count.file <- file.path(dpath,"1865-counts_myeloid_cohort1.rds")  ## Notice that filepath is a crossplatform function  
+mtd.file <- file.path(dpath,"1869-BIOKEY_metaData_myeloid_cohort1_web.csv")
+project.name <- "Myeloid_Cohort1"
+
+ccounts <- readRDS(count.file)
+mtd <- read.csv(mtd.file)
+rownames(mtd) <- mtd$Cell
+obj <- CreateSeuratObject(ccounts, project=project.name, meta.data = mtd)
+rm(ccounts);rm(mtd);gc()
+```
+
