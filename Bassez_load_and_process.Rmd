@@ -5,6 +5,8 @@ output: html_notebook
 ---
 
 ```{r}
+renv::activate()
+renv::restore()
 library(Seurat)
 ```
 
