@@ -1,0 +1,218 @@
+---
+title: Basic QC and processing of breast cancer single-cell data from Basses et al. (Nature Medicine 2021) 
+author: "A. Berenstien; M. Andreatta <massimo.andreatta at unil.ch> and S. Carmona <santiago.carmona at unil.ch>"
+output: html_notebook
+---
+
+```{r}
+renv::activate()
+renv::restore()
+library(Seurat)
+library(dplyr)
+
+```
+
+
+
+```{r}
+seed = 31416
+geo_acc <- "GSE123813"
+datadir <- "~/Dropbox/FededaBerenstein/data/Yost2019/rawCounts"
+out.data.dir <- "~/Dropbox/FededaBerenstein/data/Yost2019/processed"
+
+if(download){
+    library(GEOquery)
+    gse <- getGEO(geo_acc)
+    series <- paste0(geo_acc, "_series_matrix.txt.gz")
+    system(paste0("mkdir -p ", datadir))
+
+    options(timeout=500)
+    getGEOSuppFiles(geo_acc, baseDir = datadir)
+}
+```
+
+# Load bcc data
+```{r}
+bcc.seurat.data.file <- file.path(out.data.dir,"Yost.bcc.seurat.rds")
+if (!file.exists(bcc.seurat.data.file)) {
+    system(paste0("mkdir -p ", out.data.dir))
+
+    ## Load expression matrix and metadata
+    ## BCC
+    exp.mat.bcc <- scuttle::readSparseCounts(file = sprintf("%s/%s/GSE123813_bcc_scRNA_counts.txt.gz",
+        datadir, geo_acc), col.names = T, row.names =T, sep = "\t")
+
+    meta.data.bcc <-  read.table(file = sprintf("%s/%s/GSE123813_bcc_all_metadata.txt.gz",
+        datadir, geo_acc),sep = "\t",header = T)
+    rownames(meta.data.bcc) <- meta.data.bcc$cell.id
+    mm <- match(exp.mat.bcc%>%colnames(),meta.data.bcc%>%rownames())
+    meta.data.bcc <- meta.data.bcc[mm,]
+    # Create Seurat object and add meta data
+    bcc.object <- CreateSeuratObject(counts = exp.mat.bcc, project = "Yost.bcc",
+        min.cells = 10,meta.data = meta.data.bcc)
+    
+    saveRDS(bcc.object, file = bcc.seurat.data.file)
+
+} else {
+    bcc.object <- readRDS(bcc.seurat.data.file)
+}
+```
+
+
+# Load scc data
+```{r}
+scc.seurat.data.file <- file.path(out.data.dir,"Yost.scc.seurat.rds")
+if (!file.exists(scc.seurat.data.file)) {
+    system(paste0("mkdir -p ", out.data.dir))
+
+    ## Load expression matrix and metadata
+    ## BCC
+    exp.mat.scc <- scuttle::readSparseCounts(file = sprintf("%s/%s/GSE123813_scc_scRNA_counts.txt.gz",
+        datadir, geo_acc), col.names = T, row.names =T, sep = "\t")
+
+    meta.data.scc <-  read.table(file = sprintf("%s/%s/GSE123813_scc_metadata.txt.gz",
+        datadir, geo_acc),sep = "\t",header = T)
+    
+    rownames(meta.data.scc) <- meta.data.scc$cell.id
+    mm <- match(exp.mat.scc%>%colnames(),meta.data.scc%>%rownames())
+    meta.data.scc <- meta.data.scc[mm,]
+    # Create Seurat object and add meta data
+    scc.object <- CreateSeuratObject(counts = exp.mat.scc, project = "Yost.scc",
+        min.cells = 10,meta.data = meta.data.scc)
+    
+    saveRDS(scc.object, file = scc.seurat.data.file)
+
+} else {
+    scc.object <- readRDS(scc.seurat.data.file)
+}
+```
+
+
+
+
+Ribosomal and mitochondrial content
+
+```{r, fig.height= 10}
+percent.ribo.bcc <- PercentageFeatureSet(bcc.object, pattern = "^RP[LS]")
+percent.mito.bcc <- PercentageFeatureSet(bcc.object, pattern = "^MT-")
+
+bcc.object <- AddMetaData(bcc.object, metadata = percent.ribo.bcc, col.name = "percent.ribo")
+bcc.object <- AddMetaData(bcc.object, metadata = percent.mito.bcc, col.name = "percent.mito")
+
+Idents(bcc.object) <- "patient"
+VlnPlot(bcc.object, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+Idents(bcc.object) <- "cluster"
+VlnPlot(bcc.object, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+print('Feature RNA')
+quantile(bcc.object$nFeature_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+print('Count RNA')
+quantile(bcc.object$nCount_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+
+
+
+#### SCC
+percent.ribo.scc <- PercentageFeatureSet(scc.object, pattern = "^RP[LS]")
+percent.mito.scc <- PercentageFeatureSet(scc.object, pattern = "^MT-")
+
+scc.object <- AddMetaData(scc.object, metadata = percent.ribo.scc, col.name = "percent.ribo")
+scc.object <- AddMetaData(scc.object, metadata = percent.mito.scc, col.name = "percent.mito")
+
+Idents(scc.object) <- "patient"
+VlnPlot(scc.object, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+Idents(scc.object) <- "cluster"
+VlnPlot(scc.object, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+print('Feature RNA')
+quantile(scc.object$nFeature_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+print('Count RNA')
+quantile(scc.object$nCount_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+
+```
+
+Minimal QC to remove extreme outliers
+```{r}
+dim(bcc.object)
+bcc.object <- subset(bcc.object, subset = nFeature_RNA>500 & nFeature_RNA<6000 & 
+                       nCount_RNA>600 & nCount_RNA< 25000 &
+                       percent.ribo < 50  &
+                       percent.mito < 15) # Ya cortaron en 10%
+dim(bcc.object)
+```
+
+```{r}
+
+dim(scc.object)
+scc.object <- subset(scc.object, subset = nFeature_RNA>500 & nFeature_RNA<6000 & 
+                       nCount_RNA>600 & nCount_RNA< 25000 &
+                       percent.ribo < 50  &
+                       percent.mito < 15) #a cortaron en 10%
+dim(scc.object)
+
+```
+
+
+### Processing data 
+#### (Normalizing, F.selection, scaling, and Reductions)
+```{r}
+nfeat = 2000
+set.seed(seed)
+## Process BCC samples
+bcc.object <- NormalizeData(bcc.object, verbose = FALSE);gc()
+bcc.object <- FindVariableFeatures(bcc.object, selection.method = "vst", nfeatures = nfeat, verbose = FALSE);gc()
+genes.remove <- unlist(scGate::genes.blacklist.default) #non interesting and/or technical artifact-associated genes
+removing <- intersect(bcc.object@assays$RNA@var.features, genes.remove)
+cat(paste('removing: ',round(100*removing%>%length()/nfeat,2),'% genes\n' ))#, file = con, append =T)
+bcc.object@assays$RNA@var.features <- setdiff(bcc.object@assays$RNA@var.features, genes.remove)
+gc()
+
+bcc.object <- ScaleData(bcc.object); gc()
+bcc.object <- RunPCA(bcc.object, features = bcc.object@assays$RNA@var.features, ndims.print = 1:5, nfeatures.print = 5); gc()
+bcc.object <- RunUMAP(bcc.object, reduction = "pca", dims = 1:30, seed.use=seed); gc()
+
+```
+
+
+```{r}
+## Process SCC samples
+set.seed(1234)
+scc.object <- NormalizeData(scc.object, verbose = FALSE);gc()
+scc.object <- FindVariableFeatures(scc.object, selection.method = "vst", nfeatures = nfeat, verbose = FALSE);gc()
+genes.remove <- unlist(scGate::genes.blacklist.default) #non interesting and/or technical artifact-associated genes
+removing <- intersect(scc.object@assays$RNA@var.features, genes.remove)
+cat(paste('removing: ',round(100*removing%>%length()/nfeat,2),'% genes\n' ))#, file = con, append =T)
+scc.object@assays$RNA@var.features <- setdiff(scc.object@assays$RNA@var.features, genes.remove)
+gc()
+
+scc.object <- ScaleData(scc.object); gc()
+scc.object <- RunPCA(scc.object, features = scc.object@assays$RNA@var.features, ndims.print = 1:5, nfeatures.print = 5); gc()
+scc.object <- RunUMAP(scc.object, reduction = "pca", dims = 1:30, seed.use=123); gc()
+```
+
+## save processed data for future speed-up 
+```{r}
+bcc.processed.file <- file.path(out.data.dir,'Yost.bcc.processed.rds')
+if(!file.exists(bcc.processed.file)){
+  saveRDS(bcc.object, bcc.processed.file)
+}else{
+  bcc.object <- readRDS(file.path(out.data.dir,'Yost.bcc.processed.rds'))
+}
+
+scc.processed.file <- file.path(out.data.dir,'Yost.scc.processed.rds')
+if(!file.exists(scc.processed.file)){
+  saveRDS(scc.object, scc.processed.file)
+}else{
+  scc.object <- readRDS(file.path(out.data.dir,'Yost.scc.processed.rds'))
+}
+
+```
+
+
+```{r,fig.height=4,fig.width=10}
+DimPlot(bcc.object) + DimPlot(scc.object)
+DimPlot(bcc.object%>%subset(treatment == "pre")) + DimPlot(bcc.object%>%subset(treatment == "post"))
+
+```
+
