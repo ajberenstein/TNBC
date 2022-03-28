@@ -14,7 +14,7 @@ install.packages("remotes")
 remotes::install_github("carmonalab/UCell", ref="v1.3")
 remotes::install_github("carmonalab/scGate")
 install.packages('Seurat')
-
+install.packages("rmarkdown", dep = TRUE)
 
 renv::snapshot()
 
