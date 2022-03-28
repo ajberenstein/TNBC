@@ -15,6 +15,9 @@ remotes::install_github("carmonalab/UCell", ref="v1.3")
 remotes::install_github("carmonalab/scGate")
 install.packages('Seurat')
 install.packages("rmarkdown", dep = TRUE)
+install.packages("BiocManager")
+BiocManager::install("GEOquery")
+BiocManager::install("scuttle")
 
 renv::snapshot()
 
