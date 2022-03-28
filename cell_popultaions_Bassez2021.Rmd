@@ -25,10 +25,10 @@ data.c2 <- readRDS(file.path(inputdir,'Bassez_cohort2_processed.rds'))
 
 ```{r,fig.width=7,fig.height=3}
 A1 <- DimPlot(data.c1, reduction = "umap", group.by = "cellType")  + ggtitle("") +
-  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Cohrt 1") + NoLegend()
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Cohrt 1 (treatment naive)") + NoLegend()
 
 A2 <- DimPlot(data.c2, reduction = "umap", group.by = "cellType")  + ggtitle("") +
-  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Cohrt 2")
+  theme(legend.text = element_text(size=8), aspect.ratio = 1) + labs(subtitle = "Cohrt 2 (neoadjuvant chemo)")
 
 A1 + A2
 ```
@@ -63,11 +63,71 @@ F2 <- FeaturePlot(data.c2,reduction = "umap",features =  c("PDCD1", "CD274"),
 F1 / F2 
 ```
 
+
+## How many cells (and which) express PD-1 and PD-L1?
+
+```{r,fig.width=11,fig.height=4}
+aa <- DotPlot(data.c1, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Naive")
+bb <- DotPlot(data.c2, features = c("PDCD1","CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("Chemo")
+aa | bb
+```
+
 ## Explore PD-L1 behaviour on cancer cells (pre-treatment)
 ```{r,fig.width=9,fig.height=5}
 cancer.cells.pre.treatment.c1 <- subset(data.c1, timepoint == "Pre" & cellType == "Cancer_cell") 
-cancer.cells.pre.treatment.c2 <- subset(data.c2, timepoint == "Pre" & cellType == "Cancer_cell") 
+cancer.cells.pre.treatment.c2 <- subset(data.c2, timepoint == "Pre" & cellType == "Cancer_cell")
+```
 
+
+```{r,fig.width=9,fig.height=5}
+aa <- DotPlot(cancer.cells.pre.treatment.c1, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Naive")
+bb <- DotPlot(cancer.cells.pre.treatment.c2, features = c("PDCD1","CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("Chemo")
+aa | bb
+```
+
+
+# How many cells express PD-L1 in each cell type? 
+```{r}
+data.c1%>%dim
+data.c1$cellType%>%table()
+pdl1 <- subset(data.c1,CD274>0)
+pdl1%>%dim
+pdl1$cellType%>%table
+tt <- pdl1$cellType%>%table
+tt/(data.c1$cellType%>%table())[names(tt)]
+```
+
+
+```{r}
+cancer.cells.pre.treatment.c1%>%dim
+pdl1 <- subset(cancer.cells.pre.treatment.c1,CD274>0)
+pdl1%>%dim
+pdl1$cellType%>%table
+tt <- pdl1$cellType%>%table
+tt/(cancer.cells.pre.treatment.c1$cellType%>%table())[names(tt)]
+```
+
+
+```{r}
+data.c2%>%dim
+pdl1 <- subset(data.c2,CD274>0)
+pdl1%>%dim
+pdl1$cellType%>%table
+tt <- pdl1$cellType%>%table
+tt/(data.c2$cellType%>%table())[names(tt)]
+```
+
+
+
+```{r}
+pdl1.not.null <- subset(data.c1, CD274 >0) 
+bb <- DotPlot(pdl1.not.null , features = c("CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("Naive (subset PD-L1 >0)")
+bb
+```
+
+
+
+```{r,fig.width=9,fig.height=5}
 FeaturePlot(cancer.cells.pre.treatment.c1, reduction = "umap",features =  c("PDCD1", "CD274"),
             order =T,blend =T, blend.threshold = 0.3,cols = c("gray80", "red", "blue"),pt.size = 0.2) /
   
@@ -78,11 +138,6 @@ FeaturePlot(cancer.cells.pre.treatment.c2, reduction = "umap",features =  c("PDC
 ```
 
 
-```{r,fig.width=12,fig.height=5}
-aa <- DotPlot(data.c1, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Naive")
-bb <- DotPlot(data.c2, features = c("PDCD1","CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("Chemo")
-aa | bb
-```
 
 ```{r}
 DoHeatmap(subset(data.c2, downsample = 200), features = c("PDCD1","CD274"), size = 3)
