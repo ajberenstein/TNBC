@@ -18,6 +18,7 @@ install.packages("rmarkdown", dep = TRUE)
 install.packages("BiocManager")
 BiocManager::install("GEOquery")
 BiocManager::install("scuttle")
+remotes::install_github("nbenn/singleCellFeatures")
 
 renv::snapshot()
 
