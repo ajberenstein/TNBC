@@ -9,6 +9,7 @@ renv::activate()
 renv::restore()
 library(Seurat)
 library(dplyr)
+library(ggplot2)
 
 ```
 
@@ -19,6 +20,11 @@ seed = 31416
 geo_acc <- "GSE123813"
 datadir <- "~/Dropbox/FededaBerenstein/data/Yost2019/rawCounts"
 out.data.dir <- "~/Dropbox/FededaBerenstein/data/Yost2019/processed"
+if(length(list.files(datadir,recursive = T))==0){
+  download = T
+}else{
+  download = F
+}
 
 if(download){
     library(GEOquery)
@@ -213,6 +219,33 @@ if(!file.exists(scc.processed.file)){
 ```{r,fig.height=4,fig.width=10}
 DimPlot(bcc.object) + DimPlot(scc.object)
 DimPlot(bcc.object%>%subset(treatment == "pre")) + DimPlot(bcc.object%>%subset(treatment == "post"))
+
+```
+
+# Review expression of PD-L1 and PD1 genes per celltype
+Aliases
+PD-1 ->: PDCD1
+PD-L1 -> CD274
+```{r,fig.height=5,fig.width=12}
+aa <- DotPlot(bcc.object, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("BCC")
+bb <- DotPlot(scc.object, features = c("PDCD1","CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("SCC")
+(aa | bb) + patchwork::plot_annotation(title = 'PD1/PD-L1 expression per celltype',
+                  theme = theme(plot.title = element_text(size = 15,hjust = 0.5)))
+
+bcc_pre <- subset(bcc.object,treatment == "pre")
+bcc_post <- subset(bcc.object,treatment == "post")
+scc_pre <- subset(scc.object,treatment == "pre")
+scc_post <- subset(scc.object,treatment == "post")
+
+cc <- DotPlot(bcc_pre, features = c("PDCD1","CD274"),group.by = c("cluster")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("BCC_pre")
+dd <- DotPlot(bcc_post, features = c("PDCD1","CD274"),group.by = c("cluster")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("BCC_post")
+ee <- DotPlot(scc_pre, features = c("PDCD1","CD274"),group.by = c("cluster")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("SCC_pre")
+ff <- DotPlot(scc_post, features = c("PDCD1","CD274"),group.by = c("cluster")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("SCC_post")
+
+```
+```{r,fig.height=10,fig.width=12}
+(cc | dd) / (ee + ff) + patchwork::plot_annotation(title = 'PD1/PD-L1 expression pre/post treatment',
+                  theme = theme(plot.title = element_text(size = 15,hjust = 0.5)))
 
 ```
 
