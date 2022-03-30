@@ -217,8 +217,20 @@ if(!file.exists(scc.processed.file)){
 
 
 ```{r,fig.height=4,fig.width=10}
-DimPlot(bcc.object) + DimPlot(scc.object)
-DimPlot(bcc.object%>%subset(treatment == "pre")) + DimPlot(bcc.object%>%subset(treatment == "post"))
+a <- DimPlot(bcc.object) +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "BCC") 
+b <- DimPlot(scc.object) +labs(subtitle = "SCC")
+
+c1 <- DimPlot(bcc.object%>%subset(treatment == "pre"))  + theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "BCC pre-treatment")
+d1 <- DimPlot(bcc.object%>%subset(treatment == "post")) +labs(subtitle = "BCC post-treatment")
+
+
+e1 <- DimPlot(scc.object%>%subset(treatment == "pre"))  + theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "SCC pre-treatment")
+f1 <- DimPlot(scc.object%>%subset(treatment == "post")) +labs(subtitle = "SCC post-treatment")
+
+
+a + b
+c1 + d1
+e1 + f1
 
 ```
 
