@@ -203,16 +203,25 @@ Aliases
 PD-1 ->: PDCD1
 PD-L1 -> CD274
 ```{r,fig.height=5,fig.width=6}
-aa <- DotPlot(rna.object, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("RNA")
+a2 <- DotPlot(rna.object, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("RNA")
 pdl1.on <- subset(rna.object,CD274>0)
 
 # Sanity check
+pdl1.on <- subset(rna.object,CD274>0)
 cc <- pdl1.on$Major.celltype%>%table
 cc
 cc/(rna.object$Major.celltype%>%table)[names(cc)]
-aa
-#bb <- DotPlot(rna.object, features = c("PDCD1","CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("SCC")
+a2
 ```
+
+```{r,fig.width=14,fig.height=4}
+b2 <- DotPlot(rna.object%>%subset(Group == "Pre-treatment"), features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Pre-treatment")
+c2 <- DotPlot(rna.object%>%subset(Group == "Progression"), features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Progression")
+d2 <- DotPlot(rna.object%>%subset(Group == "Post-treatment"), features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Post-treatment")
+b2 | c2 | d2
+
+```
+
 
 
 
