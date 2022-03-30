@@ -217,15 +217,15 @@ if(!file.exists(scc.processed.file)){
 
 
 ```{r,fig.height=4,fig.width=10}
-a <- DimPlot(bcc.object) +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "BCC") 
-b <- DimPlot(scc.object) +labs(subtitle = "SCC")
+a <- DimPlot(bcc.object,label = T,repel = T,label.size = 2.5) +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "BCC") 
+b <- DimPlot(scc.object,label = T,repel = T,label.size = 2.5) +labs(subtitle = "SCC")
 
-c1 <- DimPlot(bcc.object%>%subset(treatment == "pre"))  + theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "BCC pre-treatment")
-d1 <- DimPlot(bcc.object%>%subset(treatment == "post")) +labs(subtitle = "BCC post-treatment")
+c1 <- DimPlot(bcc.object%>%subset(treatment == "pre"),label = T,repel = T,label.size = 2.5)  + theme(legend.key.size = unit(0.45, 'cm')) +labs(subtitle = "BCC pre-treatment") 
+d1 <- DimPlot(bcc.object%>%subset(treatment == "post"),label = T,repel = T,label.size = 2.5) + theme(legend.key.size = unit(0.45, 'cm')) +labs(subtitle = "BCC post-treatment")
 
 
-e1 <- DimPlot(scc.object%>%subset(treatment == "pre"))  + theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "SCC pre-treatment")
-f1 <- DimPlot(scc.object%>%subset(treatment == "post")) +labs(subtitle = "SCC post-treatment")
+e1 <- DimPlot(scc.object%>%subset(treatment == "pre"),label = T,repel = T,label.size = 2.5) +labs(subtitle = "SCC pre-treatment")
+f1 <- DimPlot(scc.object%>%subset(treatment == "post"),label = T,repel = T,label.size = 2.5) +labs(subtitle = "SCC post-treatment")
 
 
 a + b
