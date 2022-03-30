@@ -232,13 +232,17 @@ a1   + a2
 ```
 
 
-```{r,fig.height=5,fig.width=6}
-b1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Origin") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Blood/Tumor") 
+```{r,fig.height=4,fig.width=12}
+Idents(rna.object) <- "Abbreviation"
+b1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Origin") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Blood/Tumor")+  theme(legend.position="bottom") +  theme(legend.key.size = unit(0.2, 'cm'))
 
-c1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Group") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Timepoint") 
-d1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Tissue") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Tissue") 
+c1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Group",group.by = "Abbreviation") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Timepoint") +  theme(legend.position="bottom") +  theme(legend.key.size = unit(0.2, 'cm'))
 
+d1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Tissue",group.by = "Abbreviation") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Tissue") +  theme(legend.position="bottom") +  theme(legend.key.size = unit(0.2, 'cm'))
 
+b1
+c1
+d1
 #patchwork::wrap_plots(list(a1,a2,b1,c1,d1),design = layout)
 
 
