@@ -26,8 +26,7 @@ if(length(list.files(datadir,recursive = T))==0){
 }else{
   download = F
 }
-gsm <- getGEO(geo_acc,)
-Table(gsm)[1:5,]
+
 if(download){
     library(GEOquery)
     gse <- getGEO(geo_acc)
@@ -170,6 +169,49 @@ rna.object <- RunUMAP(rna.object, reduction = "pca", dims = 1:30, seed.use=seed)
 
 ```
 
+## add metadata from Supplementary Table 2
+```{r}
+cluster.meta.data <-  read.table(file = file.path(datadir,geo_acc,"ts2_zhang2021.tsv"),sep = "\t",header = T)
+extended.cluster.meta.data <- merge(rna.object@meta.data[,c("Cell.barcode","Cluster")], cluster.meta.data, by = "Cluster",all.x = T)
+mm <- match(rna.object$Cell.barcode,extended.cluster.meta.data$Cell.barcode)
+extended.cluster.meta.data <- extended.cluster.meta.data[mm,]
+#check
+#extended.cluster.meta.data%>%head()
+#rna.object@meta.data[1:5,]
+
+# Check excluded (inconsistences ~ 5000 cells)
+(extended.cluster.meta.data[extended.cluster.meta.data$Cell.type%>%is.na(),"Cluster"])%>%table()
+
+a <- cluster.meta.data$Cluster%>%unique()
+b <- rna.object$Cluster%>%unique()
+setdiff(a,b)
+setdiff(b,a)
+
+rna.object <- AddMetaData(rna.object,metadata =  as.character(extended.cluster.meta.data$Cell.type), col.name = "Cell.type")
+rna.object <- AddMetaData(rna.object,metadata =  extended.cluster.meta.data$Abbreviation,col.name = "Abbreviation")
+
+```
+
+There an inconsistency in table S2, between ILC annotations in shets "Cell clusters" and "Single cell clustering": 
+ILC1-SPON2 must be ILC2-SPON2? and ILC2-CNOT2 must be ILC1-CNOT2?
+or
+ILC1-SPON2 must be ILC1-CNOT2? and ILC2-CNOT2 must be ILC2-SPON2?
+
+Clusters looks consistent with their markers, so the ILCs1/2 labels are wrong?
+```{r,fig.width=9,fig.height=3}
+exploring.subset <- rna.object%>%subset(Cluster%in%c("t_ILC2-SPON2","t_ILC1-CNOT2"))
+a <- DimPlot(exploring.subset,group.by = "Cluster") 
+b <- FeaturePlot(exploring.subset,features = c("SPON2","CNOT2"))
+ilcs <- rna.object%>%subset(Major.celltype%in%c("ILC cell"))
+aux <- ilcs$Cluster%>%strsplit("_")%>%lapply(function(x){x[2]})%>%unlist()%>%strsplit("-")%>%lapply(function(x){x[1]})%>%unlist()
+ilcs <- AddMetaData(ilcs,metadata = aux,col.name = "ILC.type")
+cc <- DimPlot(ilcs,group.by = "ILC.type") 
+d <- DimPlot(ilcs,group.by = "Cluster") + theme(legend.position="bottom") +  theme(legend.key.size = unit(0.2, 'cm'))
+a |b
+d|cc|a
+```
+
+
 
 ## save processed data for future speed-up 
 ```{r}
@@ -179,20 +221,25 @@ if(!file.exists(rna.processed.file)){
 }else{
   rna.object <- readRDS(file.path(out.data.dir,'Zhang.rna.processed.rds'))
 }
+```
+
+
+```{r,fig.height=5,fig.width=11}
+a1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5) +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Zhang RNA data") 
+a2 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5, group.by = "Abbreviation") + theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Imputed Cell.type") 
+a1   + a2
 
 ```
 
 
-```{r,fig.height=8,fig.width=15}
-a1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5) +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "Zhang RNA data") 
+```{r,fig.height=5,fig.width=6}
+b1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Origin") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Blood/Tumor") 
 
-b1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Group") +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "Timepoint") 
-c1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Tissue") +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "Tissue") 
-layout <- "
-abbbb
-ccccc
-"
-patchwork::wrap_plots(list(a1,b1,c1),design = layout)
+c1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Group") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Timepoint") 
+d1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Tissue") +   theme(legend.key.size = unit(0.3, 'cm'),aspect.ratio = 1) +labs(subtitle = "Tissue") 
+
+
+#patchwork::wrap_plots(list(a1,a2,b1,c1,d1),design = layout)
 
 
 
@@ -202,16 +249,17 @@ patchwork::wrap_plots(list(a1,b1,c1),design = layout)
 Aliases
 PD-1 ->: PDCD1
 PD-L1 -> CD274
-```{r,fig.height=5,fig.width=6}
-a2 <- DotPlot(rna.object, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("RNA")
-pdl1.on <- subset(rna.object,CD274>0)
+```{r,fig.height=5,fig.width=12}
+a2 <- DotPlot(rna.object, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Major Celltype")
+a3 <- DotPlot(rna.object, features = c("PDCD1","CD274"),group.by = "Origin") + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Origin: Blood/Tumor")
 
-# Sanity check
-pdl1.on <- subset(rna.object,CD274>0)
-cc <- pdl1.on$Major.celltype%>%table
-cc
-cc/(rna.object$Major.celltype%>%table)[names(cc)]
-a2
+a2 + a3
+```
+
+
+```{r,fig.height=5,fig.width=6}
+a5 <- DotPlot(rna.object%>%subset(Origin == "t"), features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("Subset Origin == Tumor")
+a5
 ```
 
 ```{r,fig.width=14,fig.height=4}
