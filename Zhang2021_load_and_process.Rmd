@@ -1,0 +1,218 @@
+---
+title: Basic QC and processing of breast cancer single-cell data from Basses et al. (Nature Medicine 2021) 
+author: "A. Berenstien; M. Andreatta <massimo.andreatta at unil.ch> and S. Carmona <santiago.carmona at unil.ch>"
+output: html_notebook
+---
+
+```{r}
+renv::activate()
+renv::restore()
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+seed = 31416
+geo_acc <- "GSE169246"
+paper <- "Zhang2021" 
+datadir <- paste0("~/Dropbox/FededaBerenstein/data/",paper,"/rawCounts")
+out.data.dir <- paste0("~/Dropbox/FededaBerenstein/data/",paper,"/processed")
+if(length(list.files(datadir,recursive = T))==0){
+  download = T
+}else{
+  download = F
+}
+gsm <- getGEO(geo_acc,)
+Table(gsm)[1:5,]
+if(download){
+    library(GEOquery)
+    gse <- getGEO(geo_acc)
+    series <- paste0(geo_acc, "_series_matrix.txt.gz")
+    system(paste0("mkdir -p ", datadir))
+    system(paste0("mkdir -p ", out.data.dir))
+
+    options(timeout=100000)
+    #getfiles <- getGEOSuppFiles(geo_acc, baseDir = datadir,fetch_files = F)
+    #getGEOSuppFiles(geo_acc, baseDir = datadir,filter_regex = "RNA.counts") #the heaviest one
+    getGEOSuppFiles(geo_acc, baseDir = datadir) # Download all files
+    
+}
+```
+
+# Load bcc data
+```{r}
+rna.seurat.data.file <- file.path(out.data.dir,"Zhang.rna.seurat.rds")
+if (!file.exists(rna.seurat.data.file)) {
+    system(paste0("mkdir -p ", file.path(datadir,geo_acc,"RNA")))
+    rna.files <- list.files(file.path(datadir,geo_acc),pattern = "RNA.")
+    for(f in rna.files){
+      if(grepl("feature",f)){ link <-"features.tsv.gz"}
+      if(grepl("barcode",f)){ link <- "barcodes.tsv.gz"}
+      if(grepl("mtx",f)){ link <- "matrix.mtx.gz"}
+      file.symlink(from = file.path(datadir,geo_acc,f), to = file.path(datadir,geo_acc,"RNA",link))
+    }
+
+    rna.mtx <- Seurat::Read10X(data.dir = file.path(datadir,geo_acc,"RNA"),gene.column=1)
+    
+    #meatadata files were downloaded from supplementary tables of the original mauscript (xlsx format) and manually converted to tsv
+    meta.data.rna <-  read.table(file = file.path(datadir,geo_acc,"rna.metadata.tsv"),sep = "\t",header = T)
+    rownames(meta.data.rna) <- meta.data.rna$Cell.barcode
+    mm <- match(rna.mtx%>%colnames(),meta.data.rna%>%rownames())
+    meta.data.rna <- meta.data.rna[mm,]
+    # Create Seurat object and add meta data
+    rna.object <- CreateSeuratObject(counts = rna.mtx, project = "Zhang.RNA",
+        min.cells = 10, meta.data = meta.data.rna)
+
+    singleCellFeatures::saveRDSMC(rna.object, file = rna.seurat.data.file,threads = 32)
+
+} else {
+    rna.object <- readRDS(rna.seurat.data.file)
+}
+```
+
+# Load ATAC data
+```{r}
+atac.seurat.data.file <- file.path(out.data.dir,"Zhang.atac.seurat.rds")
+load.atac = F
+if (!file.exists(atac.seurat.data.file)) {
+    system(paste0("mkdir -p ", file.path(datadir,geo_acc,"ATAC")))
+    atac.files <- list.files(file.path(datadir,geo_acc),pattern = "ATAC.")
+    for(f in atac.files){
+      if(grepl("feature",f)) link <- "features.tsv.gz"
+      if(grepl("barcode",f)) link <- "barcodes.tsv.gz"
+      if(grepl("mtx",f)) link <- "matrix.mtx.gz"
+
+      file.symlink(from = file.path(datadir,geo_acc,f), to = file.path(datadir,geo_acc,"ATAC",link))
+    }
+
+    
+    atac.mtx <- Seurat::Read10X(data.dir = file.path(datadir,geo_acc,"ATAC"),gene.column=1)
+    
+    #meatadata files were downloaded from supplementary tables of the original mauscript (xlsx format) and manually converted to tsv
+    meta.data.atac <-  read.table(file = file.path(datadir,geo_acc,"atac.metadata.tsv"),sep = "\t",header = T)
+    rownames(meta.data.atac) <- meta.data.atac$Cell.barcode
+    mm <- match(atac.mtx%>%colnames(),meta.data.atac%>%rownames())
+    meta.data.atac <- meta.data.atac[mm,]
+    # Create Seurat object and add meta data
+    atac.object <- CreateSeuratObject(counts = atac.mtx, project = "Zhang.ATAC",
+        min.cells = 10, meta.data = meta.data.atac)
+
+    singleCellFeatures::saveRDSMC(atac.object, file = atac.seurat.data.file,threads = 32)
+} else {
+  if(load.atac){
+    atac.seurat <- readRDS(atac.seurat.data.file)
+  }
+}
+
+```
+
+
+
+
+Ribosomal and mitochondrial content
+
+```{r, fig.height= 10}
+percent.ribo.rna <- PercentageFeatureSet(rna.object, pattern = "^RP[LS]")
+percent.mito.rna <- PercentageFeatureSet(rna.object, pattern = "^MT-")
+
+rna.object <- AddMetaData(rna.object, metadata = percent.ribo.rna, col.name = "percent.ribo")
+rna.object <- AddMetaData(rna.object, metadata = percent.mito.rna, col.name = "percent.mito")
+
+Idents(rna.object) <- "Patient"
+VlnPlot(rna.object, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+Idents(rna.object) <- "Group"
+VlnPlot(rna.object, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+Idents(rna.object) <- "Major.celltype"
+VlnPlot(rna.object, features = c("nFeature_RNA", "nCount_RNA","percent.ribo","percent.mito"), ncol = 2, pt.size=0)
+
+print('Feature RNA')
+quantile(rna.object$nFeature_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+print('Count RNA')
+quantile(rna.object$nCount_RNA, c(0, 0.01, 0.1, 0.5, 0.9, 0.99))
+```
+
+
+
+Minimal QC to remove extreme outliers
+```{r}
+dim(rna.object)
+rna.object <- subset(rna.object, subset = nFeature_RNA>500 & nFeature_RNA<6000 & 
+                       nCount_RNA>600 & nCount_RNA< 21000 &
+                       percent.ribo < 50  &
+                       percent.mito < 15) # Ya cortaron en 10%
+dim(rna.object)
+```
+
+
+### Processing data 
+#### (Normalizing, F.selection, scaling, and Reductions)
+```{r}
+nfeat = 2000
+set.seed(seed)
+## Process BCC samples
+rna.object <- NormalizeData(rna.object, verbose = FALSE);gc()
+rna.object <- FindVariableFeatures(rna.object, selection.method = "vst", nfeatures = nfeat, verbose = FALSE);gc()
+genes.remove <- unlist(scGate::genes.blacklist.default) #non interesting and/or technical artifact-associated genes
+removing <- intersect(rna.object@assays$RNA@var.features, genes.remove)
+cat(paste('removing: ',round(100*removing%>%length()/nfeat,2),'% genes\n' ))#, file = con, append =T)
+rna.object@assays$RNA@var.features <- setdiff(rna.object@assays$RNA@var.features, genes.remove)
+gc()
+
+rna.object <- ScaleData(rna.object); gc()
+rna.object <- RunPCA(rna.object, features = rna.object@assays$RNA@var.features, ndims.print = 1:5, nfeatures.print = 5); gc()
+rna.object <- RunUMAP(rna.object, reduction = "pca", dims = 1:30, seed.use=seed); gc()
+
+```
+
+
+## save processed data for future speed-up 
+```{r}
+rna.processed.file <- file.path(out.data.dir,'Zhang.rna.processed.rds')
+if(!file.exists(rna.processed.file)){
+  singleCellFeatures::saveRDSMC(rna.object, rna.processed.file,threads = 32)
+}else{
+  rna.object <- readRDS(file.path(out.data.dir,'Zhang.rna.processed.rds'))
+}
+
+```
+
+
+```{r,fig.height=8,fig.width=15}
+a1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5) +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "Zhang RNA data") 
+
+b1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Group") +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "Timepoint") 
+c1 <- DimPlot(rna.object,label = T,repel = T,label.size = 2.5,split.by = "Tissue") +   theme(legend.key.size = unit(0.3, 'cm')) +labs(subtitle = "Tissue") 
+layout <- "
+abbbb
+ccccc
+"
+patchwork::wrap_plots(list(a1,b1,c1),design = layout)
+
+
+
+```
+
+# Review expression of PD-L1 and PD1 genes per celltype
+Aliases
+PD-1 ->: PDCD1
+PD-L1 -> CD274
+```{r,fig.height=5,fig.width=6}
+aa <- DotPlot(rna.object, features = c("PDCD1","CD274")) + RotatedAxis()  +  theme(aspect.ratio = 1) + ggtitle("RNA")
+pdl1.on <- subset(rna.object,CD274>0)
+
+# Sanity check
+cc <- pdl1.on$Major.celltype%>%table
+cc
+cc/(rna.object$Major.celltype%>%table)[names(cc)]
+aa
+#bb <- DotPlot(rna.object, features = c("PDCD1","CD274")) + RotatedAxis() + theme(aspect.ratio = 1) + ggtitle("SCC")
+```
+
+
+
